@@ -7,11 +7,18 @@ This skill provides comprehensive support for building, deploying, and executing
 ## Features
 
 ✅ **Battle-tested workflow patterns** that work around n8n platform limitations
-✅ **MCP integration** for seamless n8n API access
+✅ **MCP integration** for seamless n8n API access (Claude Desktop)
+✅ **Direct API access** works on web version (see [WEB_VERSION_NOTES.md](WEB_VERSION_NOTES.md))
 ✅ **Python utilities** for workflow generation and validation
 ✅ **Anti-pattern detection** to avoid common pitfalls
 ✅ **Hierarchical workflow support** for complex multi-tier automation
 ✅ **Data Table architecture** for reliable state management
+
+## Platform Notes
+
+**Claude Code Web Version**: MCP tools are not available, but the skill is **100% functional** using direct n8n API calls. See [WEB_VERSION_NOTES.md](WEB_VERSION_NOTES.md) for details.
+
+**Claude Desktop**: Full MCP support with `mcp__n8n__*` tools. Follow setup guide below.
 
 ## Quick Start
 
