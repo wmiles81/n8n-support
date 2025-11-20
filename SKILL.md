@@ -261,8 +261,81 @@ Sub: [Process] → [HTTP: Callback] ─┘
 - Solution: Use Data Tables, not variables
 - Why: No static data in Code nodes
 
+## MCP Integration
+
+### Available n8n MCP Tools
+
+Once configured (see `.mcp.json`), you have access to:
+
+**Workflow Operations:**
+- `mcp__n8n__workflow_list` - List all workflows in n8n
+- `mcp__n8n__workflow_get` - Get workflow details by ID
+- `mcp__n8n__workflow_create` - Create new workflow from JSON
+- `mcp__n8n__workflow_update` - Update existing workflow
+- `mcp__n8n__workflow_activate` - Activate a workflow
+- `mcp__n8n__workflow_deactivate` - Deactivate a workflow
+- `mcp__n8n__workflow_delete` - Delete a workflow
+
+**Execution Operations:**
+- `mcp__n8n__execution_run` - Execute a workflow via API
+- `mcp__n8n__run_webhook` - Execute workflow via webhook
+- `mcp__n8n__execution_get` - Get execution details
+- `mcp__n8n__execution_list` - List workflow executions
+- `mcp__n8n__execution_stop` - Stop a running execution
+
+**Resources (read-only):**
+- `n8n://workflows/list` - All workflows
+- `n8n://workflow/{id}` - Specific workflow details
+- `n8n://executions/{workflowId}` - Execution history
+- `n8n://execution/{id}` - Individual execution data
+
+### Usage Patterns
+
+**Execute Existing Workflow:**
+```javascript
+// List available workflows
+const workflows = await mcp__n8n__workflow_list();
+
+// Execute a workflow
+const result = await mcp__n8n__execution_run({
+  workflowId: "workflow_id_here",
+  data: {
+    num_books: 3,
+    chapters_per_book: 10
+  }
+});
+
+// Check execution status
+const status = await mcp__n8n__execution_get({
+  executionId: result.id
+});
+```
+
+**Deploy Generated Workflow:**
+```javascript
+// Generate workflow using Python script
+const workflowJson = generateHierarchicalWorkflow();
+
+// Deploy to n8n
+const created = await mcp__n8n__workflow_create({
+  workflow: workflowJson
+});
+
+// Activate it
+await mcp__n8n__workflow_activate({
+  workflowId: created.id
+});
+
+// Execute it
+const execution = await mcp__n8n__execution_run({
+  workflowId: created.id,
+  data: inputData
+});
+```
+
 ## When to Call Scripts
 
 - **Table setup**: Run `scripts/table-manager.py` first
 - **Workflow generation**: Use `scripts/generate-workflow.py`
 - **Validation**: Run `scripts/validate-workflow.py`
+- **Deployment**: Use MCP tools to upload generated workflows
