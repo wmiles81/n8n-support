@@ -1,53 +1,69 @@
 # n8n-support Skill
 
-> Production-ready n8n workflow patterns and MCP integration for Claude Code
+> Production-ready n8n workflow patterns with direct API access
 
-This skill provides comprehensive support for building, deploying, and executing n8n workflows through the Model Context Protocol (MCP).
+This skill provides comprehensive support for building, deploying, and executing n8n workflows using the n8n API directly.
 
 ## Features
 
 ✅ **Battle-tested workflow patterns** that work around n8n platform limitations
-✅ **MCP integration** for seamless n8n API access (Claude Desktop)
-✅ **Direct API access** works on web version (see [WEB_VERSION_NOTES.md](WEB_VERSION_NOTES.md))
+✅ **Direct API access** via bash helpers - works everywhere (web, desktop, CLI)
 ✅ **Python utilities** for workflow generation and validation
 ✅ **Anti-pattern detection** to avoid common pitfalls
 ✅ **Hierarchical workflow support** for complex multi-tier automation
 ✅ **Data Table architecture** for reliable state management
-
-## Platform Notes
-
-**Claude Code Web Version**: MCP tools are not available, but the skill is **100% functional** using direct n8n API calls. See [WEB_VERSION_NOTES.md](WEB_VERSION_NOTES.md) for details.
-
-**Claude Desktop**: Full MCP support with `mcp__n8n__*` tools. Follow setup guide below.
+✅ **One-time credential setup** - then just use simple commands
 
 ## Quick Start
 
-### 1. Set Up MCP Integration
+### 1. Configure Credentials
 
 ```bash
-# Install n8n MCP server
-npm install -g @leonardsellem/n8n-mcp-server
-
-# Configure credentials
+# Copy template
 cp .mcp.json.example .mcp.json
-# Edit .mcp.json with your n8n API key
 
-# Restart Claude Code
+# Edit with your n8n instance details
+vim .mcp.json
+# Add your N8N_API_URL and N8N_API_KEY
 ```
 
-See [MCP_SETUP.md](MCP_SETUP.md) for detailed instructions.
+### 2. Load API Helpers
 
-### 2. Use the Skill
+```bash
+# Source the helpers (auto-loads credentials)
+source scripts/n8n-api.sh
+```
 
-In Claude Code:
+### 3. Start Using
+
+```bash
+# List your workflows
+n8n_list_workflows
+
+# Execute a workflow
+n8n_execute_workflow "workflow_id" '{"num_books": 3}'
+
+# Monitor execution
+n8n_monitor_execution "execution_id"
+```
+
+That's it! See [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for all commands.
+
+---
+
+## Alternative: Use with Claude
+
+Ask Claude to interact with your n8n instance:
 
 ```
 User: List my n8n workflows
 
-User: Create a book series workflow with 3 books and 10 chapters each
+User: Execute the "Book Generator" workflow with 3 books
 
-User: Execute workflow "Data Sync" with parameters {...}
+User: Monitor execution exec_123
 ```
+
+Claude will use the bash helpers automatically.
 
 ## Documentation
 
@@ -123,23 +139,18 @@ Detects:
 - Parallel operations without Merge nodes
 - Memory-based state persistence
 
-## MCP Tools Available
+## Optional: MCP Tools (Desktop Only)
 
-Once configured, you'll have access to:
+If you're using Claude Desktop and prefer MCP tools over bash helpers:
 
-### Workflow Management
-- `mcp__n8n__workflow_list` - List all workflows
-- `mcp__n8n__workflow_create` - Create new workflow
-- `mcp__n8n__workflow_activate` - Activate workflow
-- `mcp__n8n__workflow_get` - Get workflow details
+See [MCP_SETUP.md](MCP_SETUP.md) for installation and setup.
 
-### Execution Control
-- `mcp__n8n__execution_run` - Execute workflow
-- `mcp__n8n__execution_get` - Get execution status
-- `mcp__n8n__execution_list` - List executions
-- `mcp__n8n__execution_stop` - Stop execution
+MCP provides tools like `mcp__n8n__workflow_list` that do the same thing as the bash helpers but:
+- Only work in Claude Desktop (not web)
+- Require additional installation (`npm install -g @leonardsellem/n8n-mcp-server`)
+- Less transparent (you don't see the actual API calls)
 
-See [SKILL.md](SKILL.md) for complete API reference.
+**Recommendation**: Use bash helpers (`n8n_list_workflows`) for better transparency and universal compatibility.
 
 ## Common Use Cases
 

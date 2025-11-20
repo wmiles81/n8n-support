@@ -261,81 +261,140 @@ Sub: [Process] → [HTTP: Callback] ─┘
 - Solution: Use Data Tables, not variables
 - Why: No static data in Code nodes
 
-## MCP Integration
+## Working with n8n API
 
-### Available n8n MCP Tools
+### Quick Start
 
-Once configured (see `.mcp.json`), you have access to:
+```bash
+# 1. One-time setup (add credentials to .mcp.json)
+cp .mcp.json.example .mcp.json
+# Edit .mcp.json with your N8N_API_URL and N8N_API_KEY
 
-**Workflow Operations:**
-- `mcp__n8n__workflow_list` - List all workflows in n8n
-- `mcp__n8n__workflow_get` - Get workflow details by ID
-- `mcp__n8n__workflow_create` - Create new workflow from JSON
-- `mcp__n8n__workflow_update` - Update existing workflow
-- `mcp__n8n__workflow_activate` - Activate a workflow
-- `mcp__n8n__workflow_deactivate` - Deactivate a workflow
-- `mcp__n8n__workflow_delete` - Delete a workflow
+# 2. Load API helpers
+source scripts/n8n-api.sh
 
-**Execution Operations:**
-- `mcp__n8n__execution_run` - Execute a workflow via API
-- `mcp__n8n__run_webhook` - Execute workflow via webhook
-- `mcp__n8n__execution_get` - Get execution details
-- `mcp__n8n__execution_list` - List workflow executions
-- `mcp__n8n__execution_stop` - Stop a running execution
+# 3. Start using
+n8n_list_workflows
+```
 
-**Resources (read-only):**
-- `n8n://workflows/list` - All workflows
-- `n8n://workflow/{id}` - Specific workflow details
-- `n8n://executions/{workflowId}` - Execution history
-- `n8n://execution/{id}` - Individual execution data
+See [QUICK_REFERENCE.md](QUICK_REFERENCE.md) for all commands.
 
-### Usage Patterns
+### Common Operations
 
-**Execute Existing Workflow:**
-```javascript
-// List available workflows
-const workflows = await mcp__n8n__workflow_list();
+**List Workflows:**
+```bash
+n8n_list_workflows
+```
 
-// Execute a workflow
-const result = await mcp__n8n__execution_run({
-  workflowId: "workflow_id_here",
-  data: {
-    num_books: 3,
-    chapters_per_book: 10
-  }
-});
+**Execute Workflow:**
+```bash
+# Simple execution
+n8n_execute_workflow "workflow_id"
 
-// Check execution status
-const status = await mcp__n8n__execution_get({
-  executionId: result.id
-});
+# With data
+n8n_execute_workflow "workflow_id" '{"num_books": 3, "chapters_per_book": 10}'
+```
+
+**Monitor Execution:**
+```bash
+# Auto-polls every 5 seconds and shows status updates
+n8n_monitor_execution "execution_id"
 ```
 
 **Deploy Generated Workflow:**
-```javascript
-// Generate workflow using Python script
-const workflowJson = generateHierarchicalWorkflow();
+```bash
+# Generate
+python scripts/generate-workflow.py > workflow.json
 
-// Deploy to n8n
-const created = await mcp__n8n__workflow_create({
-  workflow: workflowJson
-});
+# Validate
+python scripts/validate-workflow.py workflow.json
 
-// Activate it
-await mcp__n8n__workflow_activate({
-  workflowId: created.id
-});
+# Deploy
+n8n_create_workflow workflow.json
 
-// Execute it
-const execution = await mcp__n8n__execution_run({
-  workflowId: created.id,
-  data: inputData
-});
+# Activate
+n8n_activate_workflow "new_workflow_id"
 ```
 
-## When to Call Scripts
+### Full Workflow: Generate → Deploy → Execute
 
-- **Table setup**: Run `scripts/table-manager.py` first
-- **Workflow generation**: Use `scripts/generate-workflow.py`
-- **Validation**: Run `scripts/validate-workflow.py`
-- **Deployment**: Use MCP tools to upload generated workflows
+```bash
+# Generate hierarchical workflow
+python scripts/generate-workflow.py > hierarchical.json
+
+# Validate for anti-patterns
+python scripts/validate-workflow.py hierarchical.json
+
+# Deploy to n8n
+WORKFLOW_ID=$(n8n_create_workflow hierarchical.json | jq -r '.id')
+
+# Activate it
+n8n_activate_workflow "$WORKFLOW_ID"
+
+# Execute with data
+EXEC_ID=$(n8n_execute_workflow "$WORKFLOW_ID" '{"num_books": 3}' | jq -r '.id')
+
+# Monitor until complete
+n8n_monitor_execution "$EXEC_ID"
+```
+
+### Available API Functions
+
+All functions are in `scripts/n8n-api.sh`:
+
+**Workflow Management:**
+- `n8n_list_workflows` - List all workflows
+- `n8n_get_workflow <id>` - Get workflow details
+- `n8n_create_workflow <file.json>` - Create from JSON
+- `n8n_update_workflow <id> <file.json>` - Update workflow
+- `n8n_activate_workflow <id>` - Activate
+- `n8n_deactivate_workflow <id>` - Deactivate
+- `n8n_delete_workflow <id>` - Delete (with confirmation)
+
+**Execution Management:**
+- `n8n_execute_workflow <id> [data]` - Execute workflow
+- `n8n_get_execution <id>` - Get execution details
+- `n8n_list_executions [workflow_id] [limit]` - List executions
+- `n8n_stop_execution <id>` - Stop running execution
+- `n8n_monitor_execution <id> [interval]` - Poll until complete
+
+### Direct curl (for scripts/automation)
+
+If you need raw API calls:
+
+```bash
+# List workflows
+curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" \
+  "$N8N_API_URL/workflows" | jq
+
+# Execute workflow
+curl -s -X POST \
+  -H "X-N8N-API-KEY: $N8N_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"data": {"key": "value"}}' \
+  "$N8N_API_URL/workflows/WORKFLOW_ID/execute" | jq
+
+# Get execution status
+curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" \
+  "$N8N_API_URL/executions/EXECUTION_ID" | jq
+```
+
+## When to Use Scripts
+
+- **Workflow generation**: `scripts/generate-workflow.py` - Creates production-ready workflow JSON
+- **Validation**: `scripts/validate-workflow.py` - Detects anti-patterns before deployment
+- **Table management**: `scripts/table-manager.py` - Generate Data Table schemas
+- **Deployment**: `n8n_create_workflow` - Upload generated workflows to n8n
+- **Execution**: `n8n_execute_workflow` - Run workflows with parameters
+
+## Optional: MCP Tools (Desktop Only)
+
+For users of Claude Desktop, MCP tools provide an alternative interface. See [MCP_SETUP.md](MCP_SETUP.md) for setup.
+
+MCP tools like `mcp__n8n__workflow_list` do the same thing as the bash helpers, but:
+- ❌ Only work in Claude Desktop
+- ❌ Require installation and configuration
+- ❌ Less transparent (you don't see the API calls)
+- ✅ Slightly more convenient for desktop users
+
+**Recommendation**: Use bash helpers for better transparency and universal compatibility

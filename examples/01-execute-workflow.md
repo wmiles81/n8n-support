@@ -1,117 +1,142 @@
 # Example: Execute Existing n8n Workflow
 
-This example shows how to execute an existing n8n workflow using MCP.
+This example shows how to execute an existing n8n workflow using the n8n API.
 
 ## Scenario
 
 You have a pre-built workflow in n8n and want to execute it with custom parameters.
 
+## Setup
+
+```bash
+# One-time setup
+source scripts/n8n-api.sh  # Auto-loads credentials from .mcp.json
+```
+
 ## Steps
 
 ### 1. List Available Workflows
 
-First, see what workflows are available:
-
-```
-Claude, list my n8n workflows
+```bash
+n8n_list_workflows
 ```
 
-Behind the scenes, Claude uses:
-```javascript
-mcp__n8n__workflow_list()
+Or via Claude:
 ```
+User: List my n8n workflows
+```
+
+Claude uses `n8n_list_workflows` behind the scenes.
 
 ### 2. Get Workflow Details
 
-To see what parameters a workflow expects:
-
-```
-Claude, show me the details of workflow ID "abc123"
+```bash
+n8n_get_workflow "abc123"
 ```
 
-Uses:
-```javascript
-mcp__n8n__workflow_get({
-  workflowId: "abc123"
-})
+Or via Claude:
+```
+User: Show me the details of workflow abc123
 ```
 
 ### 3. Execute the Workflow
 
-Run the workflow with data:
-
+```bash
+# Direct execution
+n8n_execute_workflow "abc123" '{
+  "num_books": 3,
+  "chapters_per_book": 10,
+  "genre": "sci-fi"
+}'
 ```
-Claude, execute workflow "abc123" with this data:
+
+Or via Claude:
+```
+User: Execute workflow abc123 with:
 - num_books: 3
 - chapters_per_book: 10
 - genre: "sci-fi"
 ```
 
-Uses:
-```javascript
-mcp__n8n__execution_run({
-  workflowId: "abc123",
-  data: {
-    num_books: 3,
-    chapters_per_book: 10,
-    genre: "sci-fi"
-  }
-})
+Claude will construct and execute the API call.
+
+### 4. Monitor Execution
+
+```bash
+# Auto-polls every 5 seconds until complete
+n8n_monitor_execution "exec_456"
 ```
 
-### 4. Check Execution Status
-
-Monitor the execution:
-
-```
-Claude, check the status of execution "exec_456"
+Or check status once:
+```bash
+n8n_get_execution "exec_456"
 ```
 
-Uses:
-```javascript
-mcp__n8n__execution_get({
-  executionId: "exec_456"
-})
+Via Claude:
+```
+User: Monitor execution exec_456
 ```
 
 ### 5. View Results
 
-Once complete, get the results:
-
-```
-Claude, show me the results of execution "exec_456"
-```
-
-The execution details will include:
-- Status (success/failed/running)
+The execution details include:
+- Status (success/failed/running/crashed)
 - Start/end time
+- Duration
 - Output data
 - Error messages (if any)
 
-## Complete Conversation Example
+```bash
+# Get full execution details
+n8n_get_execution "exec_456" | jq
+```
+
+## Complete Examples
+
+### Command Line
+
+```bash
+# Load helpers
+source scripts/n8n-api.sh
+
+# List workflows
+n8n_list_workflows
+
+# Execute
+EXEC_ID=$(n8n_execute_workflow "abc123" '{"num_books": 5, "chapters_per_book": 15}' | jq -r '.id')
+
+# Monitor
+n8n_monitor_execution "$EXEC_ID"
+```
+
+### Via Claude
 
 ```
 User: List my n8n workflows
 
-Claude: You have 3 workflows:
-1. "Book Series Generator" (ID: abc123) - Active
-2. "Content Pipeline" (ID: def456) - Inactive
-3. "Data Sync" (ID: ghi789) - Active
+Claude: [Runs n8n_list_workflows]
+You have 21 workflows:
 
-User: Execute the Book Series Generator with 5 books, 15 chapters each
+Active:
+- Romance-Suspense Chapter Writer (ID: XLBQt6jk5g58FD1j)
+- Romance-Suspense 30-Chapter Generator (ID: uQg5JVC1PXNvA6iS)
 
-Claude: I'll execute the "Book Series Generator" workflow...
-[Execution started: exec_001]
+[... more workflows ...]
+
+User: Execute "Romance-Suspense Chapter Writer" with chapter_number 5
+
+Claude: [Runs n8n_execute_workflow with parameters]
+Execution started: exec_001
 Status: Running
-Started: 2025-01-20 10:30:00
 
-User: What's the status now?
+User: Monitor it
 
-Claude: Execution exec_001:
-Status: Success
-Completed: 2025-01-20 10:32:45
-Duration: 2m 45s
-Results: Generated 5 books with 75 total chapters
+Claude: [Runs n8n_monitor_execution]
+Monitoring execution exec_001...
+[10:30:15] Status: running
+[10:30:20] Status: running
+[10:30:25] Status: success
+✓ Execution completed successfully!
 ```
 
 ## Error Handling
