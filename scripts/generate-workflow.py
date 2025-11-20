@@ -470,25 +470,168 @@ return [{
     return gen.build()
 
 
+def deploy_workflow(workflow_json, output_file=None, validate=True, activate=True):
+    """
+    Deploy generated workflow to n8n using bash helpers
+
+    Args:
+        workflow_json: The workflow JSON object
+        output_file: Optional file to save JSON to (default: temp file)
+        validate: Run validation before deployment (default: True)
+        activate: Activate workflow after deployment (default: True)
+
+    Returns:
+        Workflow ID if successful, None otherwise
+    """
+    import subprocess
+    import tempfile
+    import os
+
+    # Save to temp file if no output file specified
+    if output_file is None:
+        fd, output_file = tempfile.mkstemp(suffix='.json')
+        os.close(fd)
+        temp_file = True
+    else:
+        temp_file = False
+
+    try:
+        # Write workflow to file
+        with open(output_file, 'w') as f:
+            json.dump(workflow_json, f, indent=2)
+        print(f"✓ Workflow saved to: {output_file}")
+
+        # Validate if requested
+        if validate:
+            print("Validating workflow...")
+            result = subprocess.run(
+                ['python', 'scripts/validate-workflow.py', output_file],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode != 0:
+                print(f"❌ Validation failed:\n{result.stdout}")
+                return None
+            print("✓ Validation passed")
+
+        # Deploy using bash helpers
+        print("Deploying to n8n...")
+        bash_cmd = f'source scripts/n8n-api.sh && n8n_create_workflow {output_file}'
+        result = subprocess.run(
+            ['bash', '-c', bash_cmd],
+            capture_output=True,
+            text=True
+        )
+
+        if result.returncode != 0:
+            print(f"❌ Deployment failed:\n{result.stderr}")
+            return None
+
+        # Extract workflow ID from response
+        try:
+            response = json.loads(result.stdout)
+            workflow_id = response.get('id')
+            print(f"✓ Workflow created: {workflow_id}")
+        except:
+            print(f"❌ Could not parse deployment response:\n{result.stdout}")
+            return None
+
+        # Activate if requested
+        if activate and workflow_id:
+            print("Activating workflow...")
+            bash_cmd = f'source scripts/n8n-api.sh && n8n_activate_workflow {workflow_id}'
+            result = subprocess.run(
+                ['bash', '-c', bash_cmd],
+                capture_output=True,
+                text=True
+            )
+            if result.returncode == 0:
+                print(f"✓ Workflow activated")
+            else:
+                print(f"⚠️  Activation failed (workflow created but not active)")
+
+        return workflow_id
+
+    finally:
+        # Clean up temp file if used
+        if temp_file and os.path.exists(output_file):
+            os.unlink(output_file)
+
+
 if __name__ == "__main__":
-    # Generate example workflows
-    
-    # Example 1: Loop pattern
-    loop_workflow = generate_example_workflow()
-    with open("loop_example.json", "w") as f:
-        json.dump(loop_workflow, f, indent=2)
-    print("Generated: loop_example.json")
-    
-    # Example 2: Hierarchical pattern
-    hierarchical = generate_hierarchical_workflow()
-    with open("hierarchical_example.json", "w") as f:
-        json.dump(hierarchical, f, indent=2)
-    print("Generated: hierarchical_example.json")
-    
-    # Show patterns
-    gen = N8NWorkflowGenerator()
-    print("\nNested Loop Pattern:")
-    print(json.dumps(gen.create_nested_loop_pattern(), indent=2))
-    
-    print("\nTable Schemas:")
-    print(json.dumps(gen.create_table_schema(), indent=2))
+    import argparse
+
+    parser = argparse.ArgumentParser(description='Generate n8n workflows')
+    parser.add_argument('--type', choices=['loop', 'hierarchical', 'both'], default='both',
+                        help='Type of workflow to generate (default: both)')
+    parser.add_argument('--deploy', action='store_true',
+                        help='Deploy workflow to n8n after generation')
+    parser.add_argument('--no-validate', action='store_true',
+                        help='Skip validation before deployment')
+    parser.add_argument('--no-activate', action='store_true',
+                        help='Do not activate workflow after deployment')
+    parser.add_argument('--output', '-o', help='Output file for workflow JSON')
+    parser.add_argument('--stdout', action='store_true',
+                        help='Print workflow JSON to stdout (for piping)')
+
+    args = parser.parse_args()
+
+    # Generate workflows based on type
+    if args.type in ['loop', 'both']:
+        loop_workflow = generate_example_workflow()
+
+        if args.stdout and args.type == 'loop':
+            # Print to stdout for piping
+            print(json.dumps(loop_workflow, indent=2))
+        elif args.deploy:
+            # Deploy the workflow
+            workflow_id = deploy_workflow(
+                loop_workflow,
+                output_file=args.output or "loop_example.json",
+                validate=not args.no_validate,
+                activate=not args.no_activate
+            )
+            if workflow_id:
+                print(f"\n✅ Loop workflow deployed successfully: {workflow_id}")
+            else:
+                print("\n❌ Loop workflow deployment failed")
+        else:
+            # Just save to file
+            output_file = args.output or "loop_example.json"
+            with open(output_file, "w") as f:
+                json.dump(loop_workflow, f, indent=2)
+            print(f"Generated: {output_file}")
+
+    if args.type in ['hierarchical', 'both']:
+        hierarchical = generate_hierarchical_workflow()
+
+        if args.stdout and args.type == 'hierarchical':
+            # Print to stdout for piping
+            print(json.dumps(hierarchical, indent=2))
+        elif args.deploy:
+            # Deploy the workflow
+            workflow_id = deploy_workflow(
+                hierarchical,
+                output_file=args.output or "hierarchical_example.json",
+                validate=not args.no_validate,
+                activate=not args.no_activate
+            )
+            if workflow_id:
+                print(f"\n✅ Hierarchical workflow deployed successfully: {workflow_id}")
+            else:
+                print("\n❌ Hierarchical workflow deployment failed")
+        else:
+            # Just save to file
+            output_file = args.output or "hierarchical_example.json"
+            with open(output_file, "w") as f:
+                json.dump(hierarchical, f, indent=2)
+            print(f"Generated: {output_file}")
+
+    # Show patterns if not deploying or outputting to stdout
+    if not args.deploy and not args.stdout:
+        gen = N8NWorkflowGenerator()
+        print("\nNested Loop Pattern:")
+        print(json.dumps(gen.create_nested_loop_pattern(), indent=2))
+
+        print("\nTable Schemas:")
+        print(json.dumps(gen.create_table_schema(), indent=2))

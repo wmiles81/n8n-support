@@ -88,8 +88,29 @@ Claude will use the bash helpers automatically.
 Generate production-ready n8n workflows programmatically.
 
 ```bash
+# Generate workflow files
 python scripts/generate-workflow.py
+
+# Generate and deploy directly to n8n
+python scripts/generate-workflow.py --deploy
+
+# Deploy specific type
+python scripts/generate-workflow.py --type hierarchical --deploy
+
+# Skip validation (not recommended)
+python scripts/generate-workflow.py --deploy --no-validate
+
+# Output to stdout for piping
+python scripts/generate-workflow.py --type loop --stdout | jq
 ```
+
+**Options:**
+- `--type {loop,hierarchical,both}` - Type of workflow to generate (default: both)
+- `--deploy` - Deploy workflow to n8n after generation
+- `--no-validate` - Skip validation before deployment
+- `--no-activate` - Create workflow but don't activate it
+- `--output FILE` - Custom output filename
+- `--stdout` - Print JSON to stdout (for piping)
 
 Creates workflow JSON following best practices for:
 - Loop patterns with state management

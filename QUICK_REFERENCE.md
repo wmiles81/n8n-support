@@ -128,28 +128,139 @@ curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" \
 
 ## Common Workflows
 
-### Generate → Validate → Deploy → Execute
+### Complete: Generate → Validate → Deploy → Execute → Monitor
+
+The full production workflow in one command:
+
 ```bash
-# One-liner workflow deployment
-python scripts/generate-workflow.py > wf.json && \
-  python scripts/validate-workflow.py wf.json && \
-  n8n_create_workflow wf.json | jq -r '.id' | \
-  xargs -I {} n8n_activate_workflow {} && \
-  echo "Workflow deployed and activated!"
+# Generate and deploy workflow
+python scripts/generate-workflow.py > workflow.json && \
+  echo "✓ Workflow generated" && \
+  python scripts/validate-workflow.py workflow.json && \
+  echo "✓ Validation passed" && \
+  WORKFLOW_ID=$(n8n_create_workflow workflow.json | jq -r '.id') && \
+  echo "✓ Workflow created: $WORKFLOW_ID" && \
+  n8n_activate_workflow "$WORKFLOW_ID" && \
+  echo "✓ Workflow activated" && \
+  EXEC_ID=$(n8n_execute_workflow "$WORKFLOW_ID" '{"num_books": 3}' | jq -r '.id') && \
+  echo "✓ Execution started: $EXEC_ID" && \
+  n8n_monitor_execution "$EXEC_ID"
 ```
 
-### Execute and Monitor
+**What this does:**
+1. Generates workflow JSON
+2. Validates for anti-patterns
+3. Creates workflow in n8n
+4. Activates it
+5. Executes with test data
+6. Monitors until completion
+
+### Execute and Monitor (with error handling)
+
 ```bash
-# Execute and capture execution ID
+# Execute workflow
 EXEC_ID=$(n8n_execute_workflow "workflow_id" '{"data": "value"}' | jq -r '.id')
 
-# Monitor it
-n8n_monitor_execution "$EXEC_ID"
+if [ -n "$EXEC_ID" ]; then
+  echo "Execution started: $EXEC_ID"
+  n8n_monitor_execution "$EXEC_ID"
+else
+  echo "❌ Execution failed to start"
+fi
+```
+
+### Validate Before Deploy
+
+```bash
+# Generate workflow
+python scripts/generate-workflow.py > workflow.json
+
+# Validate (exits with error if invalid)
+if python scripts/validate-workflow.py workflow.json; then
+  echo "✓ Validation passed - deploying..."
+  n8n_create_workflow workflow.json
+else
+  echo "❌ Validation failed - fix errors before deploying"
+  exit 1
+fi
+```
+
+### Deploy Multiple Workflows
+
+```bash
+# Deploy all JSON files in a directory
+for workflow in workflows/*.json; do
+  echo "Deploying $workflow..."
+  python scripts/validate-workflow.py "$workflow" && \
+    n8n_create_workflow "$workflow" && \
+    echo "✓ Deployed: $workflow"
+done
+```
+
+### Update Existing Workflow
+
+```bash
+# Get workflow ID
+WORKFLOW_ID="abc123"
+
+# Generate new version
+python scripts/generate-workflow.py > updated_workflow.json
+
+# Validate
+python scripts/validate-workflow.py updated_workflow.json
+
+# Update
+n8n_update_workflow "$WORKFLOW_ID" updated_workflow.json
+
+echo "✓ Workflow updated: $WORKFLOW_ID"
 ```
 
 ### List All Active Workflows
 ```bash
 n8n_list_workflows | grep "✓ ACTIVE" -A 2
+```
+
+### Batch Execute Workflows
+
+```bash
+# Execute multiple workflows with same data
+DATA='{"num_books": 5, "chapters_per_book": 10}'
+
+for workflow_id in "abc123" "def456" "ghi789"; do
+  echo "Executing $workflow_id..."
+  EXEC_ID=$(n8n_execute_workflow "$workflow_id" "$DATA" | jq -r '.id')
+  echo "  Started: $EXEC_ID"
+done
+```
+
+### Find and Execute Workflow by Name
+
+```bash
+# Find workflow ID by name
+WORKFLOW_ID=$(n8n_list_workflows | grep -A 1 "Book Generator" | grep "ID:" | awk '{print $2}')
+
+# Execute it
+if [ -n "$WORKFLOW_ID" ]; then
+  n8n_execute_workflow "$WORKFLOW_ID" '{"num_books": 3}'
+else
+  echo "Workflow not found"
+fi
+```
+
+### Monitor Multiple Executions
+
+```bash
+# Start multiple executions
+EXEC_1=$(n8n_execute_workflow "workflow_1" '{}' | jq -r '.id')
+EXEC_2=$(n8n_execute_workflow "workflow_2" '{}' | jq -r '.id')
+
+# Monitor both (in parallel with background jobs)
+n8n_monitor_execution "$EXEC_1" &
+n8n_monitor_execution "$EXEC_2" &
+
+# Wait for both to complete
+wait
+echo "All executions complete!"
 ```
 
 ---

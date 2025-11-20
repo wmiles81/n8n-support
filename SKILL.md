@@ -387,6 +387,131 @@ curl -s -H "X-N8N-API-KEY: $N8N_API_KEY" \
 - **Deployment**: `n8n_create_workflow` - Upload generated workflows to n8n
 - **Execution**: `n8n_execute_workflow` - Run workflows with parameters
 
+## Decision Tree
+
+### Should I generate a new workflow or use existing?
+
+**Use existing workflow when:**
+- ✅ You have a pre-built workflow that does what you need
+- ✅ Minor parameter changes are sufficient
+- ✅ The workflow is proven and tested
+- ✅ Quick execution is the goal
+
+**Generate new workflow when:**
+- ✅ Custom logic required
+- ✅ Unique requirements not covered by existing workflows
+- ✅ Learning n8n patterns
+- ✅ Building reusable components
+- ✅ Need to understand workflow internals
+
+### Should I use sub-workflows?
+
+**YES - Use sub-workflows when:**
+- 🔴 **CRITICAL**: ANY nested loops (Loop Over Items inside Loop Over Items)
+- ✅ Reusable components used in multiple workflows
+- ✅ Complex logic that benefits from modular separation
+- ✅ Workflow has >30 nodes (consider breaking up)
+- ✅ Testing individual components separately
+
+**NO - Direct workflow is fine when:**
+- ✅ Simple single-level processing
+- ✅ One-off workflow not reused elsewhere
+- ✅ Linear flow with no nesting
+- ✅ Small workflow (<15 nodes)
+
+**Remember**: n8n's Loop Over Items CANNOT be nested directly. Always use sub-workflows for nested iteration!
+
+### Should I use Data Tables or pass-through state?
+
+**Data Tables when:**
+- ✅ Need persistence across executions
+- ✅ Data >50MB
+- ✅ Complex queries (filtering, sorting, aggregation)
+- ✅ Multiple workflows accessing same data
+- ✅ Audit trail required
+- ✅ State must survive workflow errors
+- ✅ Hierarchical relationships (series → books → chapters)
+
+**Pass-through items when:**
+- ✅ Simple counters or flags
+- ✅ Temporary state within single execution
+- ✅ Small data sets (<1MB)
+- ✅ No cross-workflow sharing needed
+- ✅ Data doesn't need to persist
+
+**Note**: `$workflow.staticData` does NOT work in Code nodes - always use Data Tables for persistence!
+
+### When to use which loop pattern?
+
+**Loop Over Items:**
+- ✅ Simple iteration over array
+- ✅ Single-level processing
+- ✅ No nesting required
+- ❌ NEVER nest these directly!
+
+**Split in Batches:**
+- ✅ Processing large datasets in chunks
+- ✅ Rate limiting (process N items at a time)
+- ✅ Memory management for huge datasets
+- ✅ Progress tracking with pauses
+
+**Sub-workflow + Loop:**
+- ✅ **REQUIRED** for any nested iteration
+- ✅ Series → Books → Chapters hierarchy
+- ✅ Any multi-level data structure
+- ✅ Complex per-item processing
+
+**Conditional Loop-back:**
+- ✅ Polling/waiting patterns
+- ✅ Retry logic
+- ✅ While-loop equivalent
+- ⚠️ Always add max iteration limit!
+
+### Should I use Google Sheets or Excel?
+
+**Google Sheets:**
+- ✅ **USE THIS** in loops
+- ✅ Append operation is reliable
+- ✅ Works with parallel operations
+- ✅ Better for automation
+
+**Microsoft Excel:**
+- ❌ **BROKEN** in loops
+- ❌ Fails unpredictably
+- ❌ Only use for one-off, non-looped operations
+- ⚠️ Validation script will warn you!
+
+### How should error handling work?
+
+**Always include:**
+- ✅ Error Trigger workflow for critical workflows
+- ✅ Try-catch in Code nodes with complex logic
+- ✅ Max iteration limits in loop-back patterns
+- ✅ Validation before deployment
+
+**Error recovery strategies:**
+- Data Tables preserve state → restart from last good point
+- Error Trigger workflow → notification + cleanup
+- Conditional branches → graceful degradation
+
+### What's my workflow complexity?
+
+**Simple (<15 nodes):**
+- Single workflow, no sub-workflows needed
+- Direct deployment and testing
+
+**Medium (15-30 nodes):**
+- Consider modular sub-workflows
+- Add validation step
+- Include error handling
+
+**Complex (>30 nodes):**
+- **MUST** use sub-workflows
+- Comprehensive validation required
+- Error Trigger workflow essential
+- Consider splitting into multiple workflows
+- Performance testing needed
+
 ## Optional: MCP Tools (Desktop Only)
 
 For users of Claude Desktop, MCP tools provide an alternative interface. See [MCP_SETUP.md](MCP_SETUP.md) for setup.
